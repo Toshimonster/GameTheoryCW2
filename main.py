@@ -5,7 +5,7 @@ import math
 
 
 class IP:
-    def __init__(self, name, p1=[0,0], p2=[0,0]):
+    def __init__(self, name, p1=[0, 0], p2=[0, 0]):
         self.name = name
         self.p1 = p1
         self.p2 = p2
@@ -49,7 +49,7 @@ class Game:
         if IPs is None:
             IPs = [IP("Healthcare"), IP("Economics"), IP("Education")]
         self.P = P
-        self.S = S # moves per turn
+        self.S = S  # moves per turn
         self.IPs = IPs
         self.P1Power = P
         self.P2Power = P
@@ -82,7 +82,7 @@ class Game:
             self.IPs[i].p2[1] += p2Move[i][1]
             self.P2Power -= p2Move[i][0] + p2Move[i][1]
         result = self.__executeRound()
-        self.P1Power -= result[1] - result[0] # Own attacks come back!
+        self.P1Power -= result[1] - result[0]  # Own attacks come back!
         self.P2Power -= result[0] - result[1]
 
     def isWon(self):
@@ -91,7 +91,7 @@ class Game:
 
     def _genPMoves(self, numMoves):
         # Generate all possible combinations using itertools.product
-        all_combinations = list(product(range(numMoves + 1), repeat=2*len(self.IPs)))
+        all_combinations = list(product(range(numMoves + 1), repeat=2 * len(self.IPs)))
 
         # Filter combinations where the sum is equal to n
         valid_combinations = [combo for combo in all_combinations if sum(combo) == numMoves]
@@ -100,14 +100,14 @@ class Game:
 
     def genAllPMoves(self, max):
         moves = []
-        for i in range(1, max+1):
+        for i in range(1, max + 1):
             moves.extend(self._genPMoves(i))
 
         toRet = []
         for mov in moves:
             result = []
             for i in range(int(len(mov) / 2)):
-                result.append((mov[i*2], mov[(i*2)+1]))
+                result.append((mov[i * 2], mov[(i * 2) + 1]))
             toRet.append(result)
         return toRet
 
@@ -115,6 +115,7 @@ class Game:
         p1Moves = self.genAllPMoves(min(self.P1Power, self.S))
         p2Moves = self.genAllPMoves(min(self.P2Power, self.S))
         return list(product(p1Moves, p2Moves))
+
 
 class MaxN:
     # For optimising P1
@@ -133,12 +134,10 @@ class MaxN:
             return 0
 
     def maxn(self, depth, maxPlayer, game):
+        # If not maxPlayer, maximize for P1
         # Returns via recursion the value / gain of a game
         if (depth <= 0 or game.isWon() != 0):
             return self.evaluate(game)
-
-        playerPower = game.P1Power if not maxPlayer else game.P2Power
-        otherPlayerPower = game.P1Power if maxPlayer else game.P2Power
 
         # Handle 1 power case
         if (game.P1Power <= 1 and game.P2Power <= 1):
@@ -148,11 +147,11 @@ class MaxN:
         elif (game.P2Power <= 1):
             return 100
 
-        gain = float('-inf') if maxPlayer else float("inf")
-        pmoves = game.genAllPMoves(min(playerPower - 1, game.S))
+        playerPower = game.P1Power if maxPlayer else game.P2Power
+        otherPlayerPower = game.P1Power if not maxPlayer else game.P2Power
 
-        #if (depth >= 3):
-        #    print("Calculating maxn of ", depth, len(pmoves))
+        gain = float('-inf') if not maxPlayer else float("inf")
+        pmoves = game.genAllPMoves(min(playerPower - 1, game.S))
 
         for p1_move in pmoves:
             sum = 0
@@ -169,16 +168,18 @@ class MaxN:
                 n += 1
 
             # Update the gain if this move gives a better gain
-            gain = max(gain, sum / n) if maxPlayer else min(gain, sum / n)
+            gain = max(gain, sum / n) if not maxPlayer else min(gain, sum / n)
 
         return gain
 
     def findBestMove(self, depth):
         best_move = []
-        max_gain = float('-inf')
+        max_gain = float('-inf') if self.game.P > 1 else 0
         i = 0
         pMoves = self.game.genAllPMoves(min(self.game.P1Power - 1, self.game.S))
         for p1_move in pMoves:
+            if (p1_move == [(1,0),(1,0),(0,0)]):
+                print("!")
             i += 1
             print(str(i) + " / " + str(len(pMoves)))
             sum = 0
@@ -191,19 +192,45 @@ class MaxN:
                 temp_game.playRound(p1_move, p2_move)
 
                 # Calculate the gain for player 1
-                #sum += self.evaluate(temp_game)
+                # sum += self.evaluate(temp_game)
                 sum += self.maxn(depth, False, temp_game)
-                n+=1
+                n += 1
 
             # Update the best move if this move gives a higher gain
-            if sum / n > max_gain:
-                max_gain = sum / n
+            roundedAvg = round(sum / n, 3)
+            if roundedAvg > max_gain:
+                max_gain = roundedAvg
                 best_move = [p1_move]
-            elif (sum / n == max_gain):
+            elif (roundedAvg == max_gain):
                 best_move.append(p1_move)
-        return best_move
+        return [best_move, max_gain]
 
 
-g = Game(5, 2)
-m = MaxN(g)
-print(m.findBestMove(6))
+
+
+Ps = []
+Evals = []
+
+for i in range(1, 7):
+    g = Game(i, 2)
+    m = MaxN(g)
+    move = m.findBestMove(10)
+    print("Best move: ", move[0])
+
+    Ps.append(i)
+    Evals.append(move[1])
+
+    plt.plot(Ps, Evals, marker='o', linestyle='-')
+
+    plt.xticks(range(min(Ps), max(Ps) + 1))
+    for x, y in zip(Ps, Evals):
+        plt.text(x, y, f'{round(y,1)}', ha='right', va='bottom')
+
+    # Add labels and title
+    plt.xlabel('Initial Power')
+    plt.ylabel('Evaluation Value')
+    plt.title('Evaluation of the Information War')
+
+    # Show the plot
+    plt.show()
+
